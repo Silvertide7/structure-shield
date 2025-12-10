@@ -1,4 +1,4 @@
-package com.example.examplemod;
+package net.silvertide.structure_shield;
 
 import org.slf4j.Logger;
 
