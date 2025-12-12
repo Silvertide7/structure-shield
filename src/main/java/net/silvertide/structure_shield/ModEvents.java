@@ -22,13 +22,9 @@ public class ModEvents {
         if (player.isCreative() || player.isSpectator()) return;
 
         var state = event.getState();
-        if (state.is(ModTags.STRUCTURE_SHIELD_BYPASS)) {
-            StructureShield.LOGGER.info("This is a bypassed block");
-        } else {
-            StructureShield.LOGGER.info("This is protected");
-        }
+        if (state.is(ModTags.STRUCTURE_SHIELD_BYPASS)) return;
 
-        Optional<HolderSet.Named<Structure>> structures = level.registryAccess().lookupOrThrow(Registries.STRUCTURE).get(ModTags.STRUCTURE_SHIELD_PROTECTION);
+        var structures = level.registryAccess().lookupOrThrow(Registries.STRUCTURE).get(ModTags.STRUCTURE_SHIELD_PROTECTION);
 
         BlockPos blockpos = level.findNearestMapStructure(ModTags.STRUCTURE_SHIELD_PROTECTION, event.getPos(), 10000, false);
 
