@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.7",
+  "package": "net.silvertide.structure_shield.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "StructureMixin"
+  ],
+  "server": [],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
