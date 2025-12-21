@@ -1,0 +1,6 @@
+{
+  "message.structure_shield.break_block_denied": "Something stops you from breaking that.",
+  "message.structure_shield.place_block_denied": "Something stops you from placing that here.",
+  "message.structure_shield.sanctums_curse_denied": "The Sanctum's Curse prevents you from breaking or placing blocks.",
+  "effect.structure_shield.sanctums_curse_effect": "Sanctum's Curse"
+}

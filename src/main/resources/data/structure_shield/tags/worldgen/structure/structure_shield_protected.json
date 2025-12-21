@@ -1,0 +1,28 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:ancient_city",
+    "minecraft:bastion_remnant",
+    "minecraft:desert_pyramid",
+    "minecraft:end_city",
+    "minecraft:fortress",
+    "minecraft:igloo",
+    "minecraft:jungle_pyramid",
+    "minecraft:mineshaft",
+    "minecraft:mineshaft_mesa",
+    "minecraft:monument",
+    "minecraft:pillager_outpost",
+    "minecraft:shipwreck",
+    "minecraft:shipwreck_beached",
+    "minecraft:stronghold",
+    "minecraft:swamp_hut",
+    "minecraft:trail_ruins",
+    "minecraft:trial_chambers",
+    "minecraft:village_plains",
+    "minecraft:village_desert",
+    "minecraft:village_savanna",
+    "minecraft:village_snowy",
+    "minecraft:village_taiga",
+    "minecraft:mansion"
+  ]
+}
