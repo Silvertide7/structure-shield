@@ -1,13 +1,14 @@
 package net.silvertide.structure_shield.config;
 
-import net.neoforged.neoforge.common.ModConfigSpec;
+
+import net.minecraftforge.common.ForgeConfigSpec;
 
 public class ServerConfigs {
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
-    public static final ModConfigSpec SPEC;
+    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
+    public static final ForgeConfigSpec SPEC;
 
-    public static final ModConfigSpec.ConfigValue<Boolean> PROTECT_ALL_STRUCTURES;
-    public static final ModConfigSpec.ConfigValue<Integer> SANCTUMS_CURSE_EFFECT_DURATION;
+    public static final ForgeConfigSpec.ConfigValue<Boolean> PROTECT_ALL_STRUCTURES;
+    public static final ForgeConfigSpec.ConfigValue<Integer> SANCTUMS_CURSE_EFFECT_DURATION;
 
     static {
         BUILDER.push("Structure Shield Config");

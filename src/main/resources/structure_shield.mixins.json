@@ -1,8 +1,9 @@
 {
   "required": true,
-  "minVersion": "0.7",
+  "minVersion": "0.8",
+  "refmap": "structure_shield.refmap.json",
   "package": "net.silvertide.structure_shield.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_17",
   "mixins": [
     "StructureMixin",
     "BlockMixin"

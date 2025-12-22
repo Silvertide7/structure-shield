@@ -4,18 +4,18 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.TagsUpdatedEvent;
-import net.neoforged.neoforge.event.entity.player.UseItemOnBlockEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.server.ServerLifecycleHooks;
+import net.minecraftforge.event.TagsUpdatedEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import net.silvertide.structure_shield.api.IBlock;
 import net.silvertide.structure_shield.StructureShield;
 import net.silvertide.structure_shield.config.ServerConfigs;
@@ -23,10 +23,8 @@ import net.silvertide.structure_shield.registry.EffectRegistry;
 import net.silvertide.structure_shield.util.ProtectedStructureIndex;
 import net.silvertide.structure_shield.util.StructureShieldUtil;
 
-@EventBusSubscriber(modid = StructureShield.MODID, bus = EventBusSubscriber.Bus.GAME)
+@Mod.EventBusSubscriber(modid = StructureShield.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ModEvents {
-
-
     // ---MOD SETUP EVENTS ---
 
     @SubscribeEvent()
@@ -53,7 +51,7 @@ public class ModEvents {
         if (player.isCreative() || player.isSpectator()) return;
 
         // Client and Server check - If the player has the sanctums curse effect then we fail
-        if(player.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT)) {
+        if(player.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT.get())) {
             event.setCanceled(true);
 
             if(player instanceof ServerPlayer) {
@@ -77,7 +75,7 @@ public class ModEvents {
 
             int effectDuration = ServerConfigs.SANCTUMS_CURSE_EFFECT_DURATION.get();
             if(effectDuration > 0) {
-                serverPlayer.addEffect(new MobEffectInstance(EffectRegistry.SANCTUMS_CURSE_EFFECT, effectDuration*20));
+                serverPlayer.addEffect(new MobEffectInstance(EffectRegistry.SANCTUMS_CURSE_EFFECT.get(), effectDuration*20));
             }
 
             serverPlayer.displayClientMessage(
@@ -88,18 +86,17 @@ public class ModEvents {
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onBlockPlace(UseItemOnBlockEvent event) {
-        if(event.getUsePhase() != UseItemOnBlockEvent.UsePhase.ITEM_BEFORE_BLOCK) return;
-
-        Player player = event.getPlayer();
+    public static void onBlockPlace(PlayerInteractEvent.RightClickBlock event) {
+        Player player = event.getEntity();
         if(player == null || player.isCreative() || player.isSpectator()) return;
 
         // Make sure the item is a BlockItem.
         if(!(event.getItemStack().getItem() instanceof BlockItem blockItem)) return;
 
         // Client and Server check - If the player has the sanctums curse effect then we fail
-        if(player.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT)) {
-            event.cancelWithResult(ItemInteractionResult.FAIL);
+        if(player.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT.get())) {
+            event.setCancellationResult(InteractionResult.FAIL);
+            event.setCanceled(true);
 
             if(event.getSide().isClient()) {
                 player.displayClientMessage(Component.translatable("message.structure_shield.sanctums_curse_denied"), true);
@@ -122,13 +119,14 @@ public class ModEvents {
 
         // Check if the blockPos is inside one of the protected structures, and cancel if so.
         if(StructureShieldUtil.insideProtectedStructure(placePos, level)) {
-            event.cancelWithResult(ItemInteractionResult.FAIL);
+            event.setCancellationResult(InteractionResult.FAIL);
+            event.setCanceled(true);
 
             StructureShieldUtil.syncItemToClient(serverPlayer);
 
             int effectDuration = ServerConfigs.SANCTUMS_CURSE_EFFECT_DURATION.get();
             if(effectDuration > 0) {
-                serverPlayer.addEffect(new MobEffectInstance(EffectRegistry.SANCTUMS_CURSE_EFFECT, effectDuration*20));
+                serverPlayer.addEffect(new MobEffectInstance(EffectRegistry.SANCTUMS_CURSE_EFFECT.get(), effectDuration*20));
             }
 
             serverPlayer.displayClientMessage(
