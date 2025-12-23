@@ -1,15 +1,19 @@
 package net.silvertide.structure_shield.util;
 
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.RegistryAccess;
+import com.google.common.collect.ImmutableList;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import net.minecraft.core.*;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.silvertide.structure_shield.api.IBlock;
 import net.silvertide.structure_shield.api.IStructure;
 import net.silvertide.structure_shield.config.ServerConfigs;
@@ -53,10 +57,19 @@ public class StructureShieldUtil {
     }
 
     public static boolean insideProtectedStructure(BlockPos blockPos, ServerLevel level) {
-        return level.structureManager().getStructureWithPieceAt(blockPos, isProtectedStructure).isValid();
+        ChunkPos chunkPos = new ChunkPos(blockPos);
+        StructureManager structureManager = level.structureManager();
+
+        for(StructureStart structurestart : structureManager.startsForStructure(chunkPos, isProtectedStructure)) {
+            if (structurestart.isValid() && structureManager.structureHasPieceAt(blockPos, structurestart)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    public static final Predicate<Holder<Structure>> isProtectedStructure = (structureHolder -> ((IStructure) structureHolder.value()).structureShield$isShielded());
+    public static final Predicate<Structure> isProtectedStructure = (structure -> ((IStructure) structure).structureShield$isShielded());
 
     public static void syncItemToClient(ServerPlayer player) {
         int selected = player.getInventory().selected;

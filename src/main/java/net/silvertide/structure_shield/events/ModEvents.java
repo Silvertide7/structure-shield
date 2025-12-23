@@ -45,7 +45,7 @@ public class ModEvents {
 
     // --- LIMIT PROTECTED STRUCTURE INTERACTION EVENTS ---
 
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         var player = event.getPlayer();
         if (player.isCreative() || player.isSpectator()) return;
