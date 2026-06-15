@@ -1,43 +1,51 @@
 package net.silvertide.structure_shield.events;
 
+import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.BucketItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.BucketPickup;
+import net.minecraft.world.level.block.LiquidBlockContainer;
+import net.minecraft.world.level.block.piston.PistonStructureResolver;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
-import net.neoforged.neoforge.event.entity.player.UseItemOnBlockEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.ExplosionEvent;
+import net.neoforged.neoforge.event.level.PistonEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
-import net.silvertide.structure_shield.api.IBlock;
 import net.silvertide.structure_shield.StructureShield;
 import net.silvertide.structure_shield.config.ServerConfigs;
 import net.silvertide.structure_shield.registry.EffectRegistry;
-import net.silvertide.structure_shield.util.ProtectedStructureIndex;
 import net.silvertide.structure_shield.util.StructureShieldUtil;
 
 @EventBusSubscriber(modid = StructureShield.MODID, bus = EventBusSubscriber.Bus.GAME)
 public class ModEvents {
 
-
-    // ---MOD SETUP EVENTS ---
-
-    @SubscribeEvent()
+    @SubscribeEvent
     public static void onServerStart(ServerStartedEvent event) {
         StructureShieldUtil.setupModData(event.getServer().registryAccess());
     }
 
-    @SubscribeEvent()
-    public static void tagsUpdatedEvent(TagsUpdatedEvent event) {
+    @SubscribeEvent
+    public static void onTagsUpdated(TagsUpdatedEvent event) {
         if (event.getUpdateCause() != TagsUpdatedEvent.UpdateCause.SERVER_DATA_LOAD) return;
-        if (!event.shouldUpdateStaticData()) return;
 
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
@@ -45,96 +53,163 @@ public class ModEvents {
         server.execute(() -> StructureShieldUtil.setupModData(server.registryAccess()));
     }
 
-    // --- LIMIT PROTECTED STRUCTURE INTERACTION EVENTS ---
-
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
-        var player = event.getPlayer();
+        Player player = event.getPlayer();
         if (player.isCreative() || player.isSpectator()) return;
 
-        // Client and Server check - If the player has the sanctums curse effect then we fail
-        if(player.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT)) {
+        if (player.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT)) {
             event.setCanceled(true);
-
-            if(player instanceof ServerPlayer) {
-                player.displayClientMessage(Component.translatable("message.structure_shield.sanctums_curse_denied"), true);
-            }
+            player.displayClientMessage(Component.translatable("message.structure_shield.sanctums_curse_denied"), true);
             return;
         }
 
         if (!(event.getPlayer() instanceof ServerPlayer serverPlayer)) return;
         if (!(event.getLevel() instanceof ServerLevel level)) return;
 
-        // If the block is breakable inside protected structures then exit
-        if(((IBlock) event.getState().getBlock()).structureShield$isBreakable()) return;
-
-        BlockPos blockPos = event.getPos();
-        // Check our chunk structure cache to fail fast on chunks that have no protected structures
-        if(ProtectedStructureIndex.INSTANCE.chunkHasNoShieldedStructures(level, blockPos)) return;
-
-        if(StructureShieldUtil.insideProtectedStructure(blockPos, level)) {
+        if (StructureShieldUtil.isRemovalBlocked(level, event.getPos(), event.getState().getBlock())) {
             event.setCanceled(true);
+            denyAndCurse(serverPlayer, "message.structure_shield.break_block_denied");
+        }
+    }
 
-            int effectDuration = ServerConfigs.SANCTUMS_CURSE_EFFECT_DURATION.get();
-            if(effectDuration > 0) {
-                serverPlayer.addEffect(new MobEffectInstance(EffectRegistry.SANCTUMS_CURSE_EFFECT, effectDuration*20));
-            }
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onEntityPlace(BlockEvent.EntityPlaceEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer serverPlayer)) return;
+        if (serverPlayer.isCreative() || serverPlayer.isSpectator()) return;
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
 
-            serverPlayer.displayClientMessage(
-                    Component.translatable("message.structure_shield.break_block_denied"),
-                    true
-            );
+        if (serverPlayer.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT)) {
+            denyPlacement(event, serverPlayer, "message.structure_shield.sanctums_curse_denied", false);
+            return;
+        }
+
+        Block placedBlock = event.getPlacedBlock().getBlock();
+        if (StructureShieldUtil.isPlacementBlocked(level, event.getPos(), placedBlock)) {
+            denyPlacement(event, serverPlayer, "message.structure_shield.place_block_denied", true);
         }
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onBlockPlace(UseItemOnBlockEvent event) {
-        if(event.getUsePhase() != UseItemOnBlockEvent.UsePhase.ITEM_BEFORE_BLOCK) return;
+    public static void onBucketUse(PlayerInteractEvent.RightClickItem event) {
+        if (!(event.getItemStack().getItem() instanceof BucketItem bucket)) return;
+        if (!(event.getEntity() instanceof ServerPlayer serverPlayer)) return;
+        if (serverPlayer.isCreative() || serverPlayer.isSpectator()) return;
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
 
-        Player player = event.getPlayer();
-        if(player == null || player.isCreative() || player.isSpectator()) return;
-
-        // Make sure the item is a BlockItem.
-        if(!(event.getItemStack().getItem() instanceof BlockItem blockItem)) return;
-
-        // Client and Server check - If the player has the sanctums curse effect then we fail
-        if(player.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT)) {
-            event.cancelWithResult(ItemInteractionResult.FAIL);
-
-            if(event.getSide().isClient()) {
-                player.displayClientMessage(Component.translatable("message.structure_shield.sanctums_curse_denied"), true);
-            } else {
-                StructureShieldUtil.syncItemToClient((ServerPlayer) player);
-            }
+        if (serverPlayer.hasEffect(EffectRegistry.SANCTUMS_CURSE_EFFECT)) {
+            denyBucketUse(event, serverPlayer, "message.structure_shield.sanctums_curse_denied", false);
             return;
         }
 
-        // Server checks
-        if(!(player instanceof ServerPlayer serverPlayer))  return;
-        if(!(event.getLevel() instanceof ServerLevel level)) return;
+        boolean scooping = bucket.content == Fluids.EMPTY;
+        BlockHitResult hit = Item.getPlayerPOVHitResult(level, serverPlayer, scooping ? ClipContext.Fluid.SOURCE_ONLY : ClipContext.Fluid.NONE);
+        if (hit.getType() != HitResult.Type.BLOCK) return;
 
-        // If the block is placeable inside protected structures then stop the check.
-        if(((IBlock) blockItem.getBlock()).structureShield$isPlaceable()) return;
+        if (scooping) {
+            if (!ServerConfigs.PROTECT_FROM_BUCKET_SCOOPING.get()) return;
 
-        BlockPos placePos = event.getPos();
-        // Check our chunk structure cache to fail fast on chunks that have no protected structures
-        if(ProtectedStructureIndex.INSTANCE.chunkHasNoShieldedStructures(level, placePos)) return;
+            BlockPos scoopPos = hit.getBlockPos();
+            BlockState scoopState = level.getBlockState(scoopPos);
+            if (!(scoopState.getBlock() instanceof BucketPickup)) return;
 
-        // Check if the blockPos is inside one of the protected structures, and cancel if so.
-        if(StructureShieldUtil.insideProtectedStructure(placePos, level)) {
-            event.cancelWithResult(ItemInteractionResult.FAIL);
-
-            StructureShieldUtil.syncItemToClient(serverPlayer);
-
-            int effectDuration = ServerConfigs.SANCTUMS_CURSE_EFFECT_DURATION.get();
-            if(effectDuration > 0) {
-                serverPlayer.addEffect(new MobEffectInstance(EffectRegistry.SANCTUMS_CURSE_EFFECT, effectDuration*20));
+            Block scoopedBlock = scoopState.getFluidState().isEmpty()
+                    ? scoopState.getBlock()
+                    : scoopState.getFluidState().createLegacyBlock().getBlock();
+            if (StructureShieldUtil.isRemovalBlocked(level, scoopPos, scoopedBlock)) {
+                denyBucketUse(event, serverPlayer, "message.structure_shield.break_block_denied", true);
             }
-
-            serverPlayer.displayClientMessage(
-                    Component.translatable("message.structure_shield.place_block_denied"),
-                    true
-            );
+        } else {
+            BlockPos placePos = fluidPlacementPos(bucket, serverPlayer, level, hit);
+            Block fluidBlock = bucket.content.defaultFluidState().createLegacyBlock().getBlock();
+            if (StructureShieldUtil.isPlacementBlocked(level, placePos, fluidBlock)) {
+                denyBucketUse(event, serverPlayer, "message.structure_shield.place_block_denied", true);
+            }
         }
+    }
+
+    @SubscribeEvent
+    public static void onExplosionDetonate(ExplosionEvent.Detonate event) {
+        if (!ServerConfigs.PROTECT_FROM_EXPLOSIONS.get()) return;
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+
+        event.getAffectedBlocks().removeIf(pos ->
+                StructureShieldUtil.isRemovalBlocked(level, pos, level.getBlockState(pos).getBlock()));
+    }
+
+    @SubscribeEvent
+    public static void onPistonMove(PistonEvent.Pre event) {
+        if (!ServerConfigs.PROTECT_FROM_PISTONS.get()) return;
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+
+        if (StructureShieldUtil.noShieldedStructureInChunk(level, event.getPos())
+                && StructureShieldUtil.noShieldedStructureInChunk(level, event.getFaceOffsetPos())) {
+            return;
+        }
+
+        PistonStructureResolver resolver = event.getStructureHelper();
+        if (resolver == null || !resolver.resolve()) return;
+
+        boolean extending = event.getPistonMoveType().isExtend;
+        Direction pushDirection = extending ? event.getDirection() : event.getDirection().getOpposite();
+
+        if (extending && StructureShieldUtil.isProtectedPosition(level, event.getFaceOffsetPos())) {
+            event.setCanceled(true);
+            return;
+        }
+
+        for (BlockPos moved : resolver.getToPush()) {
+            if (StructureShieldUtil.isProtectedPosition(level, moved)
+                    || StructureShieldUtil.isProtectedPosition(level, moved.relative(pushDirection))) {
+                event.setCanceled(true);
+                return;
+            }
+        }
+
+        for (BlockPos destroyed : resolver.getToDestroy()) {
+            if (StructureShieldUtil.isProtectedPosition(level, destroyed)) {
+                event.setCanceled(true);
+                return;
+            }
+        }
+    }
+
+    private static BlockPos fluidPlacementPos(BucketItem bucket, ServerPlayer player, ServerLevel level, BlockHitResult hit) {
+        BlockPos clickedPos = hit.getBlockPos();
+        BlockState clickedState = level.getBlockState(clickedPos);
+        if (clickedState.getBlock() instanceof LiquidBlockContainer container
+                && container.canPlaceLiquid(player, level, clickedPos, clickedState, bucket.content)) {
+            return clickedPos;
+        }
+        return clickedPos.relative(hit.getDirection());
+    }
+
+    private static void denyPlacement(BlockEvent.EntityPlaceEvent event, ServerPlayer player, String messageKey, boolean curse) {
+        event.setCanceled(true);
+        player.containerMenu.sendAllDataToRemote();
+        if (curse) {
+            denyAndCurse(player, messageKey);
+        } else {
+            player.displayClientMessage(Component.translatable(messageKey), true);
+        }
+    }
+
+    private static void denyBucketUse(PlayerInteractEvent.RightClickItem event, ServerPlayer player, String messageKey, boolean curse) {
+        event.setCanceled(true);
+        event.setCancellationResult(InteractionResult.FAIL);
+        player.containerMenu.sendAllDataToRemote();
+        if (curse) {
+            denyAndCurse(player, messageKey);
+        } else {
+            player.displayClientMessage(Component.translatable(messageKey), true);
+        }
+    }
+
+    private static void denyAndCurse(ServerPlayer player, String messageKey) {
+        int effectSeconds = ServerConfigs.SANCTUMS_CURSE_EFFECT_DURATION.get();
+        if (effectSeconds > 0) {
+            player.addEffect(new MobEffectInstance(EffectRegistry.SANCTUMS_CURSE_EFFECT, effectSeconds * SharedConstants.TICKS_PER_SECOND));
+        }
+        player.displayClientMessage(Component.translatable(messageKey), true);
     }
 }

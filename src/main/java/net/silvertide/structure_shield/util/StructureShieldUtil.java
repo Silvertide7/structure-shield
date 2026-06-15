@@ -5,9 +5,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.silvertide.structure_shield.api.IBlock;
@@ -52,20 +50,28 @@ public class StructureShieldUtil {
         });
     }
 
-    public static boolean insideProtectedStructure(BlockPos blockPos, ServerLevel level) {
+    public static boolean isPlacementBlocked(ServerLevel level, BlockPos pos, Block block) {
+        if(((IBlock) block).structureShield$isPlaceable()) return false;
+        return isProtectedPosition(level, pos);
+    }
+
+    public static boolean isRemovalBlocked(ServerLevel level, BlockPos pos, Block block) {
+        if(((IBlock) block).structureShield$isBreakable()) return false;
+        return isProtectedPosition(level, pos);
+    }
+
+    public static boolean isProtectedPosition(ServerLevel level, BlockPos blockPos) {
+        if(ProtectedStructureIndex.INSTANCE.chunkHasNoShieldedStructures(level, blockPos)) return false;
+        return insideProtectedStructure(blockPos, level);
+    }
+
+    public static boolean noShieldedStructureInChunk(ServerLevel level, BlockPos blockPos) {
+        return ProtectedStructureIndex.INSTANCE.chunkHasNoShieldedStructures(level, blockPos);
+    }
+
+    private static boolean insideProtectedStructure(BlockPos blockPos, ServerLevel level) {
         return level.structureManager().getStructureWithPieceAt(blockPos, isProtectedStructure).isValid();
     }
 
     public static final Predicate<Holder<Structure>> isProtectedStructure = (structureHolder -> ((IStructure) structureHolder.value()).structureShield$isShielded());
-
-    public static void syncItemToClient(ServerPlayer player) {
-        int selected = player.getInventory().selected;
-        int slotId = 36 + selected;
-        player.connection.send(new ClientboundContainerSetSlotPacket(
-                player.inventoryMenu.containerId,
-                player.inventoryMenu.getStateId(),
-                slotId,
-                player.getInventory().getSelected().copy()
-        ));
-    }
 }

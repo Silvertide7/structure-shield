@@ -21,6 +21,7 @@ public final class ProtectedStructureIndex {
     }
 
     public boolean chunkHasNoShieldedStructures(ServerLevel level, BlockPos blockPos) {
+        if (!level.hasChunkAt(blockPos)) return true;
         Long2BooleanOpenHashMap structureCache  = dimensionStructureCache.computeIfAbsent(level.dimension(), k -> new Long2BooleanOpenHashMap());
         return !structureCache.computeIfAbsent(ChunkPos.asLong(blockPos), key -> compute(level, blockPos));
     }
