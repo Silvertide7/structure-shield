@@ -175,7 +175,17 @@
     "minecraft:red_banner",
     "minecraft:red_wall_banner",
     "minecraft:black_banner",
-    "minecraft:black_wall_banner"
+    "minecraft:black_wall_banner",
+
+    "minecraft:cobweb",
+    "minecraft:gilded_blackstone",
+
+    "minecraft:snow",
+
+    "minecraft:infested_stone_bricks",
+    "minecraft:infested_mossy_stone_bricks",
+    "minecraft:infested_cracked_stone_bricks",
+    "minecraft:infested_chiseled_stone_bricks"
 
   ]
 }

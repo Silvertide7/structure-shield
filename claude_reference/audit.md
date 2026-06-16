@@ -30,12 +30,12 @@ This work resolved several audit findings (F1, F2, F4, F8, F9, F13, F16, F28, et
 
 ### Medium severity
 
-- [ ] **F5** (bug) `effects/SanctumsCurseEffect.java` — no `fillEffectCures` override, so the default cures (milk, totem) remove the curse; drinking milk defeats the anti-spam rate-limiter.
-- [ ] **F6** (performance) `util/StructureShieldUtil.java` — no caching below chunk granularity; `getStructureWithPieceAt` linearly scans every piece AABB and can sync-load start chunks. _Partial: force-load risk fixed (Audit 2 fix A); per-section piece caching (Audit 2 fix C) still open._
+- [x] **F5** (bug) `effects/SanctumsCurseEffect.java` — milk/totem cured the curse (no `fillEffectCures` override), defeating the anti-spam rate-limiter. _Fixed: override `fillEffectCures` → `cures.clear()` so nothing lifts the curse._
+- [x] **F6** (performance) `util/ProtectedStructureIndex.java` — `getStructureWithPieceAt` linearly scans every piece AABB per call. _Fixed: added a per-position result cache (`isInsideShieldedStructure`, keyed by `BlockPos.asLong`, per dimension, cleared on reload) so repeated checks at the same spot (piston clocking, sustained mining, fire ticks) skip the scan. Force-load risk handled by fix A. Residual: the first-ever check at a new position still does one scan (and may touch the structure's start chunk once)._
 - [x] **F4** (bug) — only `BlockItem` placements intercepted; buckets, flint & steel, lily pads bypassed. _Fixed for buckets + flint&steel + modded placers; lily pads remain a documented gap._
-- [ ] **F18** (data) `tags/.../structure_shield_breakable.json` — gameplay holes: no `cobweb` (mineshafts/strongholds), no `gilded_blackstone` (signature bastion target); debatable: rails, spawner, snow, infested bricks.
-- [ ] **F23** (build) `gradle.properties` — version metadata self-contradictory: `mod_version=1.21.1-1.0.0` but `minecraft_version_range=[1.21]`; `publishMods` produces a double-prefixed `1.21-1.21.1-1.0.0`. Also violates semver.
-- [ ] **F24** (build) `gradle.properties` / mods.toml — `mod_license="Creative Commons 4.0"` is not a real identifier (CC has incompatible variants); no LICENSE file for the mod (TEMPLATE_LICENSE covers only MDK template files).
+- [x] **F18** (data) `tags/.../structure_shield_breakable.json` — breakable-tag gameplay holes. _Fixed: added `cobweb`, `gilded_blackstone`, `snow` (the layer), and the four infested stone-brick variants. Left rails and spawners protected, and igloo `snow_block` walls protected (only the thin `snow` layer is breakable), per the chosen scope._
+- [x] **F23** (build) `gradle.properties` — version metadata was self-contradictory (`mod_version=1.21.1-1.0.0` with range `[1.21]`, double-prefixed publish name). _Resolved: `mod_version` was cleaned to plain semver `1.1.0`, so publish produces `1.21-1.1.0` and mods.toml carries `1.1.0`. No embedded MC version / no double-prefix remaining._
+- [x] **F24** (build) `gradle.properties` / mods.toml — `mod_license="Creative Commons 4.0"` wasn't a real identifier. _Fixed: set `mod_license=All Rights Reserved` and added a top-level `LICENSE` file (strict ARR, no modpack carve-out — add one if desired). `TEMPLATE_LICENSE.txt` left as-is (it covers the MDK scaffolding)._
 
 ### Low severity
 
@@ -45,7 +45,7 @@ This work resolved several audit findings (F1, F2, F4, F8, F9, F13, F16, F28, et
 - [ ] **F11** (smell) magic numbers. _Partial: `effectDuration*20` → `SharedConstants.TICKS_PER_SECOND` done; hotbar `36` removed with `syncItemToClient`. Still open: effect color `3124687` as decimal (use hex), and `define` instead of `defineInRange` for the duration (negative values silently treated as disabled)._
 - [ ] **F12** (naming) `util/StructureShieldUtil.java` — `updateBlockFields` parameter named `structureRegistry` but it's the block registry (copy-paste).
 - [x] **F13** (naming) `events/ModEvents.java` — `placePos` held the clicked position; `onBlockPlace` misnamed. _Fixed: handler replaced with `onEntityPlace`; variable gone._
-- [ ] **F14** (naming) `util/StructureShieldUtil.java` — `isProtectedStructure` is a public static final constant in lowerCamelCase, declared after its first use, used only in-class.
+- [x] **F14** (naming) — `isProtectedStructure` was a public static final constant in lowerCamelCase, declared after its use. _Fixed (side effect of F6): moved into `ProtectedStructureIndex` as `private static final IS_SHIELDED`, declared before use._
 - [x] **F15** (naming) `events/ModEvents.java` — `tagsUpdatedEvent` broke the `onX` handler convention. _Fixed: renamed `onTagsUpdated`._
 - [x] **F16** (smell) `events/ModEvents.java` — break `HIGHEST` vs place `HIGH` priority asymmetry; `@SubscribeEvent()` empty parens. _Fixed: both protection handlers HIGHEST; parens normalized._
 - [x] **F17** (smell) `util/StructureShieldUtil.java` — util mixed registry flattening, structure queries, and client inventory networking (`syncItemToClient`). _Fixed: `syncItemToClient` deleted (replaced by `containerMenu.sendAllDataToRemote()` inline)._
@@ -77,8 +77,8 @@ Focused on `onPistonMove` (`events/ModEvents.java`) + the helpers it calls. Verd
 
 - [x] **A-F1 / A-F2** (high, performance) — `resolve()` ran with no cheap fast-fail, so every piston on the server paid a `PistonStructureResolver` allocation + resolve (2–3× total, since vanilla's `checkIfExtend` and `moveBlocks` also resolve). _Fixed (fix B): chunk-cache proximity gate (`noShieldedStructureInChunk` for piston + face positions) before `resolve()`, so off-structure pistons exit after ~a couple of hashmap lookups._
 - [x] **A-F4** (medium, correctness) — synchronous chunk force-load: `getStructureWithPieceAt` / `getAllStructuresAt` use 3-arg `getChunk(..., STRUCTURE_REFERENCES)` with `requireChunk=true` (blocks / can throw); a piston probing `moved.relative(pushDirection)` across an unloaded boundary could stall the server thread. _Fixed (fix A): `chunkHasNoShieldedStructures` returns "no structures" for unloaded chunks via `hasChunkAt` (verified non-loading). Hardens all handlers._
-- [ ] **A-F3** (high, performance) — piece-scan amplification: near a large structure, up to ~24 `isProtectedPosition` calls per push, each re-scanning every piece AABB of every shielded start (mansion ≈ hundreds of pieces). _Open: this is "fix C". Now low-impact since pistons are default-off and the proximity gate limits it to pistons actually touching a structure. Recommended fix: resolve the shielded start once and test all positions against its cached piece boxes; dedupe positions._
-- [ ] **A-F5** (medium, gap) — per-dimension chunk cache only cleared on `setupModData`; never evicts on chunk/dimension unload (memory growth). Correctness is fine in practice (shielded status doesn't change at runtime except on reload, which clears it). Same root as F7/F30. _Recommended: cache only positive results, or evict on chunk unload._
+- [x] **A-F3** (high, performance) — piece-scan amplification near large structures. _Substantially mitigated by F6's per-position cache: repeated activations against a structure (the dominant cost — a piston clock, sustained mining) now hit the cache instead of re-scanning pieces. The remaining "resolve the start once per multi-block operation" batching only saves the first-ever scan of each new position and is no longer pressing (pistons default-off); left as an optional micro-optimization._
+- [ ] **A-F5** (medium, gap) — **Accepted / won't-fix for now (decided 2026-06-15):** the per-dimension caches (chunk + F6 position cache) only clear on `setupModData`; they never evict on chunk/dimension unload. Growth is bounded by near-structure locality (realistically tens of KB) and cleared on reload/restart, so it's a hygiene gap, not a real leak. Deliberately left as-is to keep the hot-path caches simple. _Revisit only if a long-running server shows real growth; fix would be per-chunk eviction on `ChunkEvent.Unload`._
 - [ ] **A-F6** (low, performance) — a powered piston jammed against a structure re-resolves + re-checks every activation. _Largely mitigated by the fix-B gate; further mitigated if fix C lands._
 - [ ] **A-F7** (low, performance) — `BlockPos` allocations on the hot path (`getFaceOffsetPos()`, `moved.relative(...)`). _Recommended: reuse a `MutableBlockPos` for the probes (only matters once past the gate)._
 - [ ] **A-F8** (low, performance) — `ProtectedStructureIndex` capturing lambda in `computeIfAbsent(long, …)` may allocate a closure per call unless JIT scalarizes. Suspected; profile before changing.
@@ -89,11 +89,11 @@ Focused on `onPistonMove` (`events/ModEvents.java`) + the helpers it calls. Verd
 
 ## Suggested next steps (open items, roughly prioritized)
 
-1. **F5** — milk cures the curse (one `fillEffectCures` override; defeats the anti-spam design).
-2. **F23 / F24 / F26** — version metadata contradiction, license clarity + LICENSE file, bounded dependency range (publishing correctness).
-3. **F18** — breakable-tag gameplay holes (cobweb, gilded blackstone).
-4. **A-F3 (fix C)** — per-section piece cache (the broad perf win behind F6 too); only pressing if pistons get enabled widely.
-5. Cheap cleanups — **F10, F11 (color + bounds), F12, F14, F29 (18×18 icon), F31**.
-6. Pre-ossification renames — **F22** (tag/effect ids), **API naming risk** (IBlock/IStructure).
-7. **F19 / F20 / F21** — tag content: reference vanilla tags, reconcile structure list, JSON style + dead wall-torch entries.
-8. **F33** — re-flatten on `ModConfigEvent.Reloading`; **F32** — decide FakePlayer policy.
+1. Cheap cleanups — **F10, F11 (color + bounds), F12, F29 (18×18 icon), F31**.
+2. Pre-ossification renames — **F22** (tag/effect ids), **API naming risk** (IBlock/IStructure).
+3. **F19 / F20 / F21** — tag content: reference vanilla tags, reconcile structure list, JSON style + dead wall-torch entries.
+4. **F33** — re-flatten on `ModConfigEvent.Reloading`; **F32** — decide FakePlayer policy.
+5. **F26** — bound the NeoForge dependency range (publishing hygiene).
+6. **F7 / F30** — cache eviction + negated-query-name cleanup (A-F5 accepted as-is for now).
+
+_All medium-severity findings are now resolved or explicitly accepted; only low-severity items remain._

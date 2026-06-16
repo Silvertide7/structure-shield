@@ -1,7 +1,6 @@
 package net.silvertide.structure_shield.util;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
@@ -12,8 +11,6 @@ import net.silvertide.structure_shield.api.IBlock;
 import net.silvertide.structure_shield.api.IStructure;
 import net.silvertide.structure_shield.config.ServerConfigs;
 import net.silvertide.structure_shield.tags.ModTags;
-
-import java.util.function.Predicate;
 
 public class StructureShieldUtil {
     private StructureShieldUtil() {
@@ -62,16 +59,10 @@ public class StructureShieldUtil {
 
     public static boolean isProtectedPosition(ServerLevel level, BlockPos blockPos) {
         if(ProtectedStructureIndex.INSTANCE.chunkHasNoShieldedStructures(level, blockPos)) return false;
-        return insideProtectedStructure(blockPos, level);
+        return ProtectedStructureIndex.INSTANCE.isInsideShieldedStructure(level, blockPos);
     }
 
     public static boolean noShieldedStructureInChunk(ServerLevel level, BlockPos blockPos) {
         return ProtectedStructureIndex.INSTANCE.chunkHasNoShieldedStructures(level, blockPos);
     }
-
-    private static boolean insideProtectedStructure(BlockPos blockPos, ServerLevel level) {
-        return level.structureManager().getStructureWithPieceAt(blockPos, isProtectedStructure).isValid();
-    }
-
-    public static final Predicate<Holder<Structure>> isProtectedStructure = (structureHolder -> ((IStructure) structureHolder.value()).structureShield$isShielded());
 }
