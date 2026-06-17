@@ -27,10 +27,10 @@ public final class ProtectedStructureIndex {
         positionShieldedCache.clear();
     }
 
-    public boolean chunkHasNoShieldedStructures(ServerLevel level, BlockPos blockPos) {
-        if (!level.hasChunkAt(blockPos)) return true;
+    public boolean chunkHasShieldedStructure(ServerLevel level, BlockPos blockPos) {
+        if (!level.hasChunkAt(blockPos)) return false;
         Long2BooleanOpenHashMap cache = chunkShieldedCache.computeIfAbsent(level.dimension(), k -> new Long2BooleanOpenHashMap());
-        return !cache.computeIfAbsent(ChunkPos.asLong(blockPos), key -> computeChunkHasShieldedStructure(level, blockPos));
+        return cache.computeIfAbsent(ChunkPos.asLong(blockPos), key -> computeChunkHasShieldedStructure(level, blockPos));
     }
 
     public boolean isInsideShieldedStructure(ServerLevel level, BlockPos blockPos) {
@@ -39,10 +39,7 @@ public final class ProtectedStructureIndex {
     }
 
     private boolean computeChunkHasShieldedStructure(ServerLevel level, BlockPos blockPos) {
-        var refs = level.structureManager().getAllStructuresAt(blockPos);
-        if (refs.isEmpty()) return false;
-
-        for (Structure structure : refs.keySet()) {
+        for (Structure structure : level.structureManager().getAllStructuresAt(blockPos).keySet()) {
             if (((IStructure) structure).structureShield$isShielded()) {
                 return true;
             }

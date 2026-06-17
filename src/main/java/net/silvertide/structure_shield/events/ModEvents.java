@@ -23,6 +23,7 @@ import net.minecraft.world.phys.HitResult;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -142,8 +143,8 @@ public class ModEvents {
         if (!ServerConfigs.PROTECT_FROM_PISTONS.get()) return;
         if (!(event.getLevel() instanceof ServerLevel level)) return;
 
-        if (StructureShieldUtil.noShieldedStructureInChunk(level, event.getPos())
-                && StructureShieldUtil.noShieldedStructureInChunk(level, event.getFaceOffsetPos())) {
+        if (!StructureShieldUtil.chunkHasShieldedStructure(level, event.getPos())
+                && !StructureShieldUtil.chunkHasShieldedStructure(level, event.getFaceOffsetPos())) {
             return;
         }
 
@@ -186,6 +187,7 @@ public class ModEvents {
 
     private static void denyPlacement(BlockEvent.EntityPlaceEvent event, ServerPlayer player, String messageKey, boolean curse) {
         event.setCanceled(true);
+        if (player instanceof FakePlayer) return;
         player.containerMenu.sendAllDataToRemote();
         if (curse) {
             denyAndCurse(player, messageKey);
@@ -197,6 +199,7 @@ public class ModEvents {
     private static void denyBucketUse(PlayerInteractEvent.RightClickItem event, ServerPlayer player, String messageKey, boolean curse) {
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.FAIL);
+        if (player instanceof FakePlayer) return;
         player.containerMenu.sendAllDataToRemote();
         if (curse) {
             denyAndCurse(player, messageKey);
@@ -206,6 +209,8 @@ public class ModEvents {
     }
 
     private static void denyAndCurse(ServerPlayer player, String messageKey) {
+        if (player instanceof FakePlayer) return;
+
         int effectSeconds = ServerConfigs.SANCTUMS_CURSE_EFFECT_DURATION.get();
         if (effectSeconds > 0) {
             player.addEffect(new MobEffectInstance(EffectRegistry.SANCTUMS_CURSE_EFFECT, effectSeconds * SharedConstants.TICKS_PER_SECOND));

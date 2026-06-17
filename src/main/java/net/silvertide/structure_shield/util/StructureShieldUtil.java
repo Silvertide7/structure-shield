@@ -35,8 +35,8 @@ public class StructureShieldUtil {
         });
     }
 
-    private static void updateBlockFields(HolderLookup.RegistryLookup<Block> structureRegistry) {
-        structureRegistry.listElements().forEach(block -> {
+    private static void updateBlockFields(HolderLookup.RegistryLookup<Block> blockRegistry) {
+        blockRegistry.listElements().forEach(block -> {
             boolean isBreakable = block.is(ModTags.STRUCTURE_SHIELD_BREAKABLE);
             boolean isPlaceable = block.is(ModTags.STRUCTURE_SHIELD_PLACEABLE);
 
@@ -58,11 +58,11 @@ public class StructureShieldUtil {
     }
 
     public static boolean isProtectedPosition(ServerLevel level, BlockPos blockPos) {
-        if(ProtectedStructureIndex.INSTANCE.chunkHasNoShieldedStructures(level, blockPos)) return false;
+        if(!ProtectedStructureIndex.INSTANCE.chunkHasShieldedStructure(level, blockPos)) return false;
         return ProtectedStructureIndex.INSTANCE.isInsideShieldedStructure(level, blockPos);
     }
 
-    public static boolean noShieldedStructureInChunk(ServerLevel level, BlockPos blockPos) {
-        return ProtectedStructureIndex.INSTANCE.chunkHasNoShieldedStructures(level, blockPos);
+    public static boolean chunkHasShieldedStructure(ServerLevel level, BlockPos blockPos) {
+        return ProtectedStructureIndex.INSTANCE.chunkHasShieldedStructure(level, blockPos);
     }
 }
