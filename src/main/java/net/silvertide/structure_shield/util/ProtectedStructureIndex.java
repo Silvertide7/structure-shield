@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.longs.Long2BooleanOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
@@ -28,7 +29,7 @@ public final class ProtectedStructureIndex {
     }
 
     public boolean chunkHasShieldedStructure(ServerLevel level, BlockPos blockPos) {
-        if (!level.hasChunkAt(blockPos)) return false;
+        if (!level.getChunkSource().hasChunk(SectionPos.blockToSectionCoord(blockPos.getX()), SectionPos.blockToSectionCoord(blockPos.getZ()))) return false;
         Long2BooleanOpenHashMap cache = chunkShieldedCache.computeIfAbsent(level.dimension(), k -> new Long2BooleanOpenHashMap());
         return cache.computeIfAbsent(ChunkPos.asLong(blockPos), key -> computeChunkHasShieldedStructure(level, blockPos));
     }

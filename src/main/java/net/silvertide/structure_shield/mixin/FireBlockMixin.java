@@ -21,20 +21,20 @@ public class FireBlockMixin {
 
     @Inject(method = "checkBurnOut", at = @At("HEAD"), cancellable = true)
     private void structureShield$preventBurnInProtectedStructure(Level level, BlockPos pos, int chance, RandomSource random, int age, Direction face, CallbackInfo ci) {
-        if (isFireSpreadProtected(level, pos)) {
+        if (structureShield$isFireSpreadProtected(level, pos)) {
             ci.cancel();
         }
     }
 
     @Inject(method = "getIgniteOdds(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;)I", at = @At("HEAD"), cancellable = true)
     private void structureShield$preventSpreadIntoProtectedStructure(LevelReader level, BlockPos pos, CallbackInfoReturnable<Integer> cir) {
-        if (isFireSpreadProtected(level, pos)) {
+        if (structureShield$isFireSpreadProtected(level, pos)) {
             cir.setReturnValue(0);
         }
     }
 
     @Unique
-    private static boolean isFireSpreadProtected(LevelReader level, BlockPos pos) {
+    private static boolean structureShield$isFireSpreadProtected(LevelReader level, BlockPos pos) {
         return level instanceof ServerLevel serverLevel
                 && ServerConfigs.PROTECT_FROM_FIRE_SPREAD.get()
                 && StructureShieldUtil.isProtectedPosition(serverLevel, pos);

@@ -95,3 +95,20 @@ Every numbered finding (F1–F33) and the audit-2 findings are now **resolved, a
 2. **Accepted / declined (no action planned):** F22 (keep IDs — no breaking renames), F31 (keep config category), A-F5 (cache eviction — bounded growth accepted), A-F6/A-F7/A-F8 (piston micro-opts), API-naming risk (cosmetic/internal), and the design-limitation roadmap note (per-structure tag scoping).
 
 _All medium- and low-severity findings are resolved or explicitly accepted; only the F29 art redraw remains actionable._
+
+---
+
+## IntelliJ inspection review (2026-06-17)
+
+Full project Inspect Code export reviewed (`claude_reference/problems/`). Totals: **16 errors, 210 warnings, 16 weak, 392 typos** — but ~95% is noise, not code defects:
+
+- **Noise (no fix):** all 14 "lossy encoding" errors + 14 "reassigned to plain text" warnings + ~700 spelling hits are `run/logs/*.log.gz` (gzipped dev logs); 184 grammar warnings are prose nits.
+- **False positives (no fix):** the 2 Annotator errors + 5 TOML "unresolved" are `${...}` placeholders in the mods.toml **template**; the 15 Groovy warnings are IntelliJ not modelling the Gradle/ModDevGradle DSL in build.gradle; 1 is `.idea` module metadata.
+
+**Done:**
+- [x] **T0** — excluded `run/` from IDE inspection via `idea.module.excludeDirs += file('run')` in build.gradle (committed). Clears all 14 errors + 14 warnings + the bulk of typos. *(Re-sync Gradle in IntelliJ to apply.)*
+- [x] **T1.1** — `ProtectedStructureIndex`: deprecated `hasChunkAt(BlockPos)` → `getChunkSource().hasChunk(...)` (also clears the Gradle build's deprecation note).
+- [x] **T1.2** — `FireBlockMixin`: `@Unique` helper renamed to `structureShield$isFireSpreadProtected` (mixin uniqueness pattern).
+- [x] **T1.3** — `SanctumsCurseEffect`: added `@ParametersAreNonnullByDefault` so the `fillEffectCures` override matches the supertype's nonnull contract.
+
+**Not done (Tier 2, cosmetic):** boolean-always-inverted on `chunkHasShieldedStructure` (accepted — F30 deliberately chose the positive name), README markdown-table formatting, Gradle minor-version bump. The template/DSL false positives are suppressible by excluding `src/main/templates` + `build/` from inspection but need no code change.
